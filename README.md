@@ -220,8 +220,8 @@ Contraseña: paciente123
 ```env
 NEXT_PUBLIC_APP_NAME=OnControl
 NEXT_PUBLIC_APP_VERSION=1.0.0
-NEXT_PUBLIC_API_URL=https://oncontrol-backend-grupo2.onrender.com
-NEXT_PUBLIC_EDGE_API_URL=https://oncontrol-edgeservice-grupo2.onrender.com
+NEXT_PUBLIC_API_URL=https://backend-vdtj.onrender.com
+NEXT_PUBLIC_EDGE_API_URL=https://edgeservice.onrender.com
 ```
 
 Para prueba local de la demo IoT:
@@ -250,8 +250,8 @@ Next.js
 Variables en Vercel:
 
 ```env
-NEXT_PUBLIC_API_URL=https://oncontrol-backend-grupo2.onrender.com
-NEXT_PUBLIC_EDGE_API_URL=https://oncontrol-edgeservice-grupo2.onrender.com
+NEXT_PUBLIC_API_URL=https://backend-vdtj.onrender.com
+NEXT_PUBLIC_EDGE_API_URL=https://edgeservice.onrender.com
 ```
 
 Pruebas despues del deploy:

@@ -2,7 +2,7 @@
 // Handles communication with the Python/Flask EdgeService.
 
 
-const EDGE_API_URL = process.env.NEXT_PUBLIC_EDGE_API_URL || 'https://oncontrol-edgeservice-grupo2.onrender.com';
+const EDGE_API_URL = process.env.NEXT_PUBLIC_EDGE_API_URL || 'https://edgeservice.onrender.com';
 
 
 type RawEdgeHealthRecord = {
