@@ -126,7 +126,9 @@ export default function NuevaCitaPage() {
       appointmentDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
 
       const appointmentData: CreateAppointmentRequest = {
-        appointmentDate: appointmentDateTime.toISOString(),
+        // Preserve the local time selected by the patient. The backend receives
+        // LocalDateTime and must not be given a UTC-converted ISO value.
+        appointmentDate: format(appointmentDateTime, "yyyy-MM-dd'T'HH:mm:ss"),
         durationMinutes: formData.durationMinutes,
         type: formData.type as AppointmentType,
         location: formData.location || undefined,

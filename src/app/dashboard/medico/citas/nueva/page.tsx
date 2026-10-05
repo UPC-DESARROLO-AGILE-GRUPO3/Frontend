@@ -143,7 +143,9 @@ export default function NuevaCitaPage() {
       appointmentDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
 
       const appointmentData: CreateAppointmentRequest = {
-        appointmentDate: appointmentDateTime.toISOString(),
+        // The backend stores a LocalDateTime, so send the selected local wall-clock
+        // time without converting it to UTC (which shifted appointments by 5 hours in Lima).
+        appointmentDate: format(appointmentDateTime, "yyyy-MM-dd'T'HH:mm:ss"),
         durationMinutes: formData.durationMinutes,
         type: formData.type as AppointmentType,
         location: formData.location || undefined,

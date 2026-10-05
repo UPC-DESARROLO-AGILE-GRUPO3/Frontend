@@ -11,12 +11,15 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loading } from "@/components/loading"
 import { useAuthContext } from "@/contexts/auth-context"
 import { appointments } from "@/lib/api"
 import type { AppointmentResponse } from "@/lib/api"
 import { isDoctorUser } from "@/types/organization"
-import { Search, Plus, MoreHorizontal, Eye, Calendar, Clock, MapPin, Check, CheckCircle, X } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Eye, Calendar, Clock, MapPin, Check, CheckCircle, Loader2, X } from "lucide-react"
 
 export default function AppointmentsPage() {
   const { user } = useAuthContext()
@@ -28,6 +31,11 @@ export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<number | null>(null)
+  const [appointmentToCancel, setAppointmentToCancel] = useState<AppointmentResponse | null>(null)
+  const [cancellationReason, setCancellationReason] = useState("")
+  const [actionMessage, setActionMessage] = useState("")
+  const [actionError, setActionError] = useState("")
 
   useEffect(() => {
     if (user && isDoctorUser(user)) {
@@ -101,32 +109,72 @@ export default function AppointmentsPage() {
   }, [appointmentsList, searchTerm, statusFilter, dateFilter])
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'confirmada':
-        return 'bg-primary/20 text-primary-foreground border-primary/30'
-      case 'programada':
-        return 'bg-primary/10 text-primary-foreground border-primary/20'
-      case 'completada':
-        return 'bg-muted text-muted-foreground border-muted'
-      case 'cancelada':
-        return 'bg-muted text-muted-foreground border-border'
+    switch (status?.toUpperCase()) {
+      case 'CONFIRMED':
+      case 'CONFIRMADA':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'SCHEDULED':
+      case 'PROGRAMADA':
+        return 'bg-blue-50 text-blue-700 border-blue-200'
+      case 'IN_PROGRESS':
+        return 'bg-amber-50 text-amber-700 border-amber-200'
+      case 'COMPLETED':
+      case 'COMPLETADA':
+        return 'bg-primary/10 text-primary border-primary/30'
+      case 'CANCELLED':
+      case 'CANCELADA':
+        return 'bg-red-50 text-red-700 border-red-200'
+      case 'NO_SHOW':
+        return 'bg-slate-100 text-slate-700 border-slate-200'
       default:
         return 'bg-muted text-muted-foreground border-muted'
     }
   }
 
   const getStatusText = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'confirmada':
+    switch (status?.toUpperCase()) {
+      case 'CONFIRMED':
+      case 'CONFIRMADA':
         return 'Confirmada'
-      case 'programada':
+      case 'SCHEDULED':
+      case 'PROGRAMADA':
         return 'Programada'
-      case 'completada':
+      case 'IN_PROGRESS':
+        return 'En curso'
+      case 'COMPLETED':
+      case 'COMPLETADA':
         return 'Completada'
-      case 'cancelada':
+      case 'CANCELLED':
+      case 'CANCELADA':
         return 'Cancelada'
+      case 'NO_SHOW':
+        return 'No asistió'
       default:
         return status || 'N/A'
+    }
+  }
+
+  const handleStatusUpdate = async (
+    appointment: AppointmentResponse,
+    status: AppointmentResponse['status'],
+    reason?: string,
+  ) => {
+    try {
+      setPendingAppointmentId(appointment.id)
+      setActionError("")
+      setActionMessage("")
+      const updated = await appointments.updateStatus(appointment.id, status, reason)
+      setAppointmentsList((current) =>
+        current.map((item) => item.id === appointment.id ? updated : item)
+      )
+      setActionMessage(`La cita de ${appointment.patientName} fue actualizada correctamente.`)
+      setAppointmentToCancel(null)
+      setCancellationReason("")
+    } catch (err) {
+      console.error('Error updating appointment:', err)
+      setActionError(err instanceof Error ? err.message : 'No se pudo actualizar la cita')
+    } finally {
+      setPendingAppointmentId(null)
     }
   }
 
@@ -170,6 +218,7 @@ export default function AppointmentsPage() {
               </Button>
             </div>
           </div>
+
         </DashboardLayout>
       </AuthGuard>
     )
@@ -204,6 +253,19 @@ export default function AppointmentsPage() {
               </Button>
             </div>
           </div>
+
+          {actionMessage && (
+            <Alert className="border-2 border-emerald-200 bg-emerald-50 text-emerald-800">
+              <CheckCircle className="h-5 w-5" />
+              <AlertDescription className="font-semibold">{actionMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          {actionError && (
+            <Alert variant="destructive" className="border-2">
+              <AlertDescription className="font-semibold">{actionError}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -416,8 +478,10 @@ export default function AppointmentsPage() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
+                              <Button variant="ghost" className="h-8 w-8 p-0" disabled={pendingAppointmentId === appointment.id}>
+                                {pendingAppointmentId === appointment.id
+                                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                                  : <MoreHorizontal className="h-4 w-4" />}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -428,19 +492,22 @@ export default function AppointmentsPage() {
                                 </Link>
                               </DropdownMenuItem>
                               {appointment.status === 'SCHEDULED' && (
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => void handleStatusUpdate(appointment, 'CONFIRMED')}>
                                   <Check className="mr-2 h-4 w-4" />
                                   Confirmar Cita
                                 </DropdownMenuItem>
                               )}
                               {appointment.status === 'CONFIRMED' && (
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => void handleStatusUpdate(appointment, 'COMPLETED')}>
                                   <CheckCircle className="mr-2 h-4 w-4" />
                                   Marcar como Completada
                                 </DropdownMenuItem>
                               )}
                               {(appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED') && (
-                                <DropdownMenuItem className="text-muted-foreground hover:text-foreground">
+                                <DropdownMenuItem
+                                  className="text-muted-foreground hover:text-foreground"
+                                  onClick={() => setAppointmentToCancel(appointment)}
+                                >
                                   <X className="mr-2 h-4 w-4" />
                                   Cancelar Cita
                                 </DropdownMenuItem>
@@ -456,6 +523,48 @@ export default function AppointmentsPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Dialog
+          open={Boolean(appointmentToCancel)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAppointmentToCancel(null)
+              setCancellationReason("")
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancelar cita</DialogTitle>
+              <DialogDescription>
+                Indica el motivo de cancelación para dejarlo registrado.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              value={cancellationReason}
+              onChange={(event) => setCancellationReason(event.target.value)}
+              placeholder="Motivo de cancelación"
+              className="min-h-24"
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAppointmentToCancel(null)}>
+                Volver
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!cancellationReason.trim() || pendingAppointmentId !== null}
+                onClick={() => {
+                  if (appointmentToCancel) {
+                    void handleStatusUpdate(appointmentToCancel, 'CANCELLED', cancellationReason.trim())
+                  }
+                }}
+              >
+                {pendingAppointmentId !== null && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirmar cancelación
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </AuthGuard>
   )
