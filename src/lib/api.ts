@@ -660,13 +660,25 @@ class ApiClient {
     
     this.loadTokenFromStorage();
     
+    const requestController = new AbortController();
+    const timeoutId = setTimeout(() => requestController.abort(), 30000);
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        requestController.abort();
+      } else {
+        options.signal.addEventListener('abort', () => requestController.abort(), { once: true });
+      }
+    }
+
     const config: RequestInit = {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
         ...options.headers,
       },
-      ...options,
+      signal: requestController.signal,
     };
 
     // Debug logging (can be disabled in production)
@@ -715,6 +727,12 @@ class ApiClient {
       
       return data;
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          'El servidor tardó demasiado en responder. Es posible que esté iniciando; espera unos segundos e inténtalo de nuevo.'
+        );
+      }
+
       // Only log if it's a network error (not an HTTP error already logged)
       if (error instanceof TypeError) {
         console.error('💥 Network error:', { 
@@ -734,6 +752,8 @@ class ApiClient {
         throw networkError;
       }
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
