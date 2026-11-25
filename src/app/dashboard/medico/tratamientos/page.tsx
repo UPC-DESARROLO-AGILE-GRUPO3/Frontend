@@ -127,12 +127,17 @@ export default function TratamientosPage() {
           </h1>
           <p className="text-muted-foreground text-lg">Administra los protocolos de tratamiento de tus pacientes</p>
         </div>
-        <Button className="bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-opacity h-11 px-6 shadow-lg hover:shadow-xl" asChild>
-          <Link href="/dashboard/medico/tratamientos/nuevo">
-            <Plus className="w-5 h-5 mr-2" />
-            Nuevo Tratamiento
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/medico/tratamientos/propuestas">Ver propuestas</Link>
+          </Button>
+          <Button className="bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-opacity h-11 px-6 shadow-lg hover:shadow-xl" asChild>
+            <Link href="/dashboard/medico/tratamientos/nuevo">
+              <Plus className="w-5 h-5 mr-2" />
+              Nuevo tratamiento
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Estadísticas */}
@@ -328,12 +333,14 @@ export default function TratamientosPage() {
                         Ver
                       </Link>
                     </Button>
-                    <Button variant="outline" size="sm" className="border-2 hover:bg-secondary hover:text-secondary-foreground" asChild>
-                      <Link href={`/dashboard/medico/tratamientos/${tratamiento.id}/editar`}>
-                        <Edit className="w-4 h-4 mr-1" />
-                        Editar
-                      </Link>
-                    </Button>
+                    {tratamiento.status === "ACTIVE" && (
+                      <Button variant="outline" size="sm" className="border-2 hover:bg-secondary hover:text-secondary-foreground" asChild>
+                        <Link href={`/dashboard/medico/tratamientos/nuevo?treatmentId=${tratamiento.id}`}>
+                          <Edit className="w-4 h-4 mr-1" />
+                          Proponer cambios
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </div>
 

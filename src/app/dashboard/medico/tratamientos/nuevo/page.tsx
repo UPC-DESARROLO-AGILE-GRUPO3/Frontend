@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -13,13 +13,13 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, Plus, X, Save, CalendarIcon, User, Pill, Activity, CheckCircle, FileText } from "lucide-react"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { useAuthContext } from "@/contexts/auth-context"
 import { isDoctorUser } from "@/types/organization"
-import { treatments, doctors } from "@/lib/api"
+import { apiClient, treatments, doctors } from "@/lib/api"
 import type { CreateTreatmentRequest, PatientProfileResponse, TreatmentType } from "@/lib/api"
 
 const treatmentTypes: Array<{ value: TreatmentType, label: string }> = [
@@ -111,14 +111,24 @@ const locations = [
 ]
 
 export default function NuevoTratamientoPage() {
+  return <Suspense fallback={null}><TreatmentProposalEntry /></Suspense>
+}
+
+function TreatmentProposalEntry() {
+  const params = useSearchParams()
+  const targetId = params.get("treatmentId")
+  const initialPatientId = params.get("patientId")
+  return <TreatmentProposalForm key={`${targetId ?? ""}:${initialPatientId ?? ""}`} targetId={targetId} initialPatientId={initialPatientId} />
+}
+
+function TreatmentProposalForm({ targetId, initialPatientId }: { targetId: string | null; initialPatientId: string | null }) {
   const { user } = useAuthContext()
-  const router = useRouter()
   const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
   const [patients, setPatients] = useState<PatientProfileResponse[]>([])
   const [isLoadingPatients, setIsLoadingPatients] = useState(true)
   
   const [formData, setFormData] = useState({
-    patientProfileId: "" as string | number,
+    patientProfileId: (initialPatientId ?? "") as string | number,
     type: "" as TreatmentType | "",
     protocol: "",
     totalCycles: "",
@@ -126,6 +136,7 @@ export default function NuevoTratamientoPage() {
     sessionDurationMinutes: "",
     location: "",
     medications: [] as string[],
+    procedures: "",
     notes: "",
     preparationInstructions: ""
   })
@@ -133,7 +144,10 @@ export default function NuevoTratamientoPage() {
   const [customMedication, setCustomMedication] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState(false)
+  const [submittedId, setSubmittedId] = useState<number | null>(null)
+  const [targetLoaded, setTargetLoaded] = useState(false)
+  const availableProtocols = formData.type ? protocolos[formData.type] : []
+  const hasCustomProtocol = Boolean(formData.protocol && !availableProtocols.includes(formData.protocol))
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -153,6 +167,35 @@ export default function NuevoTratamientoPage() {
 
     loadPatients()
   }, [doctorProfileId])
+
+  useEffect(() => {
+    if (!targetId || !doctorProfileId) return
+    let cancelled = false
+    treatments.get(Number(targetId)).then((current) => {
+      if (cancelled) return
+      if (current.doctorId !== doctorProfileId || current.status !== "ACTIVE") {
+        setError("Este tratamiento no está disponible para proponer cambios.")
+        return
+      }
+      setFormData({
+        patientProfileId: current.patientId,
+        type: current.type,
+        protocol: current.protocol,
+        totalCycles: String(current.totalCycles),
+        startDate: parseISO(current.startDate),
+        sessionDurationMinutes: current.sessionDurationMinutes?.toString() ?? "",
+        location: current.location ?? "",
+        medications: current.medications ?? [],
+        procedures: current.procedures?.join("\n") ?? "",
+        notes: current.notes ?? "",
+        preparationInstructions: current.preparationInstructions ?? "",
+      })
+      setTargetLoaded(true)
+    }).catch(() => {
+      if (!cancelled) setError("No pudimos cargar el tratamiento vigente.")
+    })
+    return () => { cancelled = true }
+  }, [doctorProfileId, targetId])
 
   const handleInputChange = (field: string, value: string | Date | number | undefined) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -187,14 +230,15 @@ export default function NuevoTratamientoPage() {
     setIsLoading(true)
     setError("")
 
-    if (!doctorProfileId) {
+    if (!doctorProfileId || (targetId && !targetLoaded)) {
       setError("Error: No se pudo identificar el médico")
       setIsLoading(false)
       return
     }
 
     // Validaciones
-    if (!formData.patientProfileId || formData.patientProfileId === "" || !formData.type || !formData.protocol || !formData.totalCycles || !formData.startDate) {
+    if (!formData.patientProfileId || !formData.type || !formData.protocol.trim() || formData.protocol === "otro"
+      || !formData.totalCycles || !formData.startDate) {
       setError("Por favor completa todos los campos obligatorios")
       setIsLoading(false)
       return
@@ -203,12 +247,13 @@ export default function NuevoTratamientoPage() {
     try {
       const treatmentData: CreateTreatmentRequest = {
         type: formData.type as TreatmentType,
-        protocol: formData.protocol,
+        protocol: formData.protocol.trim(),
         totalCycles: parseInt(formData.totalCycles),
         startDate: format(formData.startDate, 'yyyy-MM-dd'),
         sessionDurationMinutes: formData.sessionDurationMinutes ? parseInt(formData.sessionDurationMinutes) : undefined,
         location: formData.location || undefined,
         medications: formData.medications.length > 0 ? formData.medications : undefined,
+        procedures: formData.procedures.split("\n").map(line => line.trim()).filter(Boolean),
         notes: formData.notes || undefined,
         preparationInstructions: formData.preparationInstructions || undefined
       }
@@ -217,21 +262,16 @@ export default function NuevoTratamientoPage() {
         ? parseInt(formData.patientProfileId) 
         : formData.patientProfileId;
       
-      await treatments.create(doctorProfileId, patientId, treatmentData)
-      setSuccess(true)
-
-      setTimeout(() => {
-        router.push("/dashboard/medico/tratamientos")
-      }, 2000)
+      const proposal = await apiClient.proposeTreatment(patientId, treatmentData, targetId ? Number(targetId) : undefined)
+      setSubmittedId(proposal.id)
     } catch (err) {
-      console.error('Error creating treatment:', err)
-      setError(err instanceof Error ? err.message : "Error al crear el tratamiento")
+      setError(err instanceof Error ? err.message : "Error al enviar la propuesta")
     } finally {
       setIsLoading(false)
     }
   }
 
-  if (success) {
+  if (submittedId !== null) {
     return (
       <AuthGuard requiredRole="DOCTOR">
         <DashboardLayout>
@@ -242,17 +282,17 @@ export default function NuevoTratamientoPage() {
                   <CheckCircle className="h-10 w-10 text-primary" />
                 </div>
                 <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  ¡Tratamiento creado exitosamente!
+                  Propuesta enviada
                 </h2>
                 <p className="text-muted-foreground mb-8 text-lg font-medium">
-                  El tratamiento ha sido registrado y está disponible para el paciente.
+                  El paciente puede revisar el plan y responder desde su panel.
                 </p>
                 <div className="space-y-3">
                   <Button asChild className="w-full bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-opacity h-12 px-6 text-lg font-semibold shadow-lg hover:shadow-xl">
-                    <Link href="/dashboard/medico/tratamientos">Ver Tratamientos</Link>
+                    <Link href={`/dashboard/medico/tratamientos/propuestas/${submittedId}`}>Ver propuesta</Link>
                   </Button>
                   <Button variant="outline" asChild className="w-full h-12 px-6 text-lg font-semibold border-2 hover:bg-muted hover:border-muted-foreground">
-                    <Link href="/dashboard/medico/tratamientos/nuevo">Crear Otro Tratamiento</Link>
+                    <Link href="/dashboard/medico/tratamientos">Volver a tratamientos</Link>
                   </Button>
                 </div>
               </CardContent>
@@ -281,9 +321,9 @@ export default function NuevoTratamientoPage() {
               </Link>
               <div className="space-y-2">
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  Nuevo Tratamiento
+                  {targetId ? "Proponer cambios de tratamiento" : "Nuevo tratamiento"}
                 </h1>
-                <p className="text-muted-foreground text-lg">Registra un nuevo tratamiento oncológico para un paciente</p>
+                <p className="text-muted-foreground text-lg">Envía el plan al paciente para que lo revise y responda.</p>
               </div>
           </div>
 
@@ -313,7 +353,7 @@ export default function NuevoTratamientoPage() {
                     <Select
                       value={formData.patientProfileId ? formData.patientProfileId.toString() : ""}
                       onValueChange={(value) => handleInputChange("patientProfileId", parseInt(value))}
-                      disabled={isLoadingPatients}
+                      disabled={isLoadingPatients || Boolean(targetId)}
                     >
                       <SelectTrigger id="patient" className="h-12 text-base border-2">
                         <SelectValue placeholder={isLoadingPatients ? "Cargando pacientes..." : "Selecciona un paciente"} />
@@ -365,7 +405,10 @@ export default function NuevoTratamientoPage() {
                     </Label>
                     <Select
                       value={formData.type}
-                      onValueChange={(value) => handleInputChange("type", value as TreatmentType)}
+                      onValueChange={(value) => {
+                        setFormData((current) => ({ ...current, type: value as TreatmentType, protocol: "" }))
+                        setError("")
+                      }}
                     >
                       <SelectTrigger id="type" className="h-12 text-base border-2">
                         <SelectValue placeholder="Selecciona el tipo" />
@@ -386,7 +429,7 @@ export default function NuevoTratamientoPage() {
                     </Label>
                     {formData.type && protocolos[formData.type as TreatmentType] ? (
                       <Select
-                        value={formData.protocol}
+                        value={hasCustomProtocol ? "otro" : formData.protocol}
                         onValueChange={(value) => handleInputChange("protocol", value)}
                       >
                         <SelectTrigger id="protocol" className="h-12 text-base border-2">
@@ -411,11 +454,11 @@ export default function NuevoTratamientoPage() {
                         className="h-12 text-base border-2 focus:border-primary"
                       />
                     )}
-                    {formData.protocol === "otro" && (
+                    {hasCustomProtocol && (
                       <Input
                         placeholder="Especifica el protocolo personalizado"
                         value={formData.protocol === "otro" ? "" : formData.protocol}
-                        onChange={(e) => handleInputChange("protocol", e.target.value)}
+                        onChange={(e) => handleInputChange("protocol", e.target.value || "otro")}
                         className="mt-2 h-12 text-base border-2 focus:border-primary"
                       />
                     )}
@@ -588,6 +631,16 @@ export default function NuevoTratamientoPage() {
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-2">
+                  <Label htmlFor="procedures" className="text-base font-semibold">Procedimientos</Label>
+                  <Textarea
+                    id="procedures"
+                    placeholder="Escribe un procedimiento por línea"
+                    value={formData.procedures}
+                    onChange={(e) => handleInputChange("procedures", e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="notes" className="text-base font-semibold">Notas</Label>
                   <Textarea
                     id="notes"
@@ -618,9 +671,9 @@ export default function NuevoTratamientoPage() {
               <Button type="button" variant="outline" asChild className="h-12 px-8 text-lg font-semibold border-2 hover:bg-muted hover:border-muted-foreground">
                 <Link href="/dashboard/medico/tratamientos">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={isLoading} className="bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-opacity h-12 px-8 text-lg font-semibold shadow-lg hover:shadow-xl disabled:opacity-50">
+              <Button type="submit" disabled={isLoading || Boolean(targetId && !targetLoaded)} className="bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-opacity h-12 px-8 text-lg font-semibold shadow-lg hover:shadow-xl disabled:opacity-50">
                 <Save className="mr-2 h-5 w-5" />
-                {isLoading ? "Creando..." : "Crear Tratamiento"}
+                {isLoading ? "Enviando..." : "Enviar propuesta"}
               </Button>
             </div>
           </form>

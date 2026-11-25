@@ -232,6 +232,7 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
                 <NotificationsBell
                   key={user.profile.profileId}
                   appointmentsHref={user.type === "DOCTOR" ? "/dashboard/medico/citas" : "/dashboard/paciente/citas"}
+                  treatmentProposalsHref={user.type === "DOCTOR" ? "/dashboard/medico/tratamientos/propuestas" : "/dashboard/paciente/tratamiento/propuestas"}
                 />
               )}
               <DropdownMenu>

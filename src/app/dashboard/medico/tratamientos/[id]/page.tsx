@@ -216,14 +216,14 @@ export default function TreatmentDetailsPage() {
                       <span className="text-base font-semibold">Protocolo: {treatment.protocol}</span>
                     </CardDescription>
                   </div>
-                  <div className="flex gap-2">
-                    <Link href={`/dashboard/medico/tratamientos/${treatment.id}/editar`}>
-                      <Button variant="outline" size="sm" className="border-2 hover:bg-primary hover:text-primary-foreground">
+                  {treatment.status === "ACTIVE" && (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/dashboard/medico/tratamientos/nuevo?treatmentId=${treatment.id}`}>
                         <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </Button>
-                    </Link>
-                  </div>
+                        Proponer cambios
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-6">

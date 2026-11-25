@@ -5,18 +5,24 @@ import { Bell } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { apiClient, type AppointmentNotification, type NotificationInbox } from "@/lib/api"
+import { apiClient, type AppNotification, type NotificationInbox } from "@/lib/api"
 
-const titles: Record<AppointmentNotification["type"], string> = {
+const titles: Record<AppNotification["type"], string> = {
   SCHEDULED: "Nueva cita programada",
   CANCELLED: "Cita cancelada",
   RESCHEDULED: "Cita reprogramada",
   REMINDER: "Recordatorio de cita",
+  TREATMENT_PROPOSED: "Propuesta de tratamiento",
+  TREATMENT_ACCEPTED: "Propuesta de tratamiento aceptada",
+  TREATMENT_REJECTED: "Propuesta de tratamiento rechazada",
 }
 
 const dateFormat = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" })
 
-export function NotificationsBell({ appointmentsHref }: { appointmentsHref: string }) {
+export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: {
+  appointmentsHref: string
+  treatmentProposalsHref: string
+}) {
   const [open, setOpen] = useState(false)
   const [inbox, setInbox] = useState<NotificationInbox | null>(null)
   const [error, setError] = useState("")
@@ -65,7 +71,7 @@ export function NotificationsBell({ appointmentsHref }: { appointmentsHref: stri
     }
   }
 
-  async function markRead(notification: AppointmentNotification) {
+  async function markRead(notification: AppNotification) {
     setBusy(true)
     setError("")
     try {
@@ -119,7 +125,7 @@ export function NotificationsBell({ appointmentsHref }: { appointmentsHref: stri
                       <dd><time dateTime={item.appointmentDate}>{dateFormat.format(new Date(item.appointmentDate))}</time></dd>
                     </div>
                   </dl>
-                ) : (
+                ) : "appointmentDate" in item && item.appointmentDate && (
                   <p className="mt-1 text-sm text-muted-foreground">
                     Cita del <time dateTime={item.appointmentDate}>{dateFormat.format(new Date(item.appointmentDate))}</time>
                   </p>
@@ -129,8 +135,10 @@ export function NotificationsBell({ appointmentsHref }: { appointmentsHref: stri
                 </p>
                 <div className="mt-1 flex flex-wrap gap-x-4">
                   <Button asChild variant="link" className="h-8 p-0">
-                    <Link href={`${appointmentsHref}/${item.appointmentId}`} onClick={() => setOpen(false)}>
-                      Ver cita
+                    <Link href={"proposalId" in item
+                      ? `${treatmentProposalsHref}/${item.proposalId}`
+                      : `${appointmentsHref}/${item.appointmentId}`} onClick={() => setOpen(false)}>
+                      {"proposalId" in item ? "Ver propuesta" : "Ver cita"}
                     </Link>
                   </Button>
                   {!item.readAt && (

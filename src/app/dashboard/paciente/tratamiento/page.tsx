@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -106,6 +107,9 @@ export default function TratamientoPacientePage() {
                   Reintentar
                 </Button>
               )}
+              <Button asChild variant="outline">
+                <Link href="/dashboard/paciente/tratamiento/propuestas">Ver propuestas</Link>
+              </Button>
             </div>
           </div>
         </DashboardLayout>
@@ -123,6 +127,9 @@ export default function TratamientoPacientePage() {
           Mi Tratamiento
         </h1>
         <p className="text-muted-foreground text-lg">Información detallada sobre tu protocolo de tratamiento actual</p>
+        <Button asChild variant="outline">
+          <Link href="/dashboard/paciente/tratamiento/propuestas">Ver propuestas</Link>
+        </Button>
       </div>
 
       {/* Resumen del tratamiento */}
@@ -278,6 +285,16 @@ export default function TratamientoPacientePage() {
             </Card>
           )}
 
+          {Boolean(treatment.procedures?.length) && (
+            <Card>
+              <CardHeader><CardTitle>Procedimientos</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="list-disc pl-5">
+                  {treatment.procedures?.map((procedure, index) => <li key={index}>{procedure}</li>)}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
           {treatment.preparationInstructions && (
             <Card className="border-2 border-secondary/30 shadow-lg bg-gradient-to-br from-secondary/10 to-secondary/5">
               <CardHeader className="border-b border-secondary/30">

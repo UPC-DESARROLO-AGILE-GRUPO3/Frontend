@@ -231,18 +231,22 @@ export interface AppointmentResponse {
   cancelledAt?: string;
 }
 
-export interface AppointmentNotification {
+export type AppNotification = {
   id: number;
-  appointmentId: number;
-  type: 'SCHEDULED' | 'CANCELLED' | 'RESCHEDULED' | 'REMINDER';
-  appointmentDate: string;
-  previousAppointmentDate?: string | null;
   createdAt: string;
   readAt: string | null;
-}
+} & ({
+  type: 'SCHEDULED' | 'CANCELLED' | 'RESCHEDULED' | 'REMINDER';
+  appointmentId: number;
+  appointmentDate: string;
+  previousAppointmentDate?: string | null;
+} | {
+  type: 'TREATMENT_PROPOSED' | 'TREATMENT_ACCEPTED' | 'TREATMENT_REJECTED';
+  proposalId: number;
+});
 
 export interface NotificationInbox {
-  items: AppointmentNotification[];
+  items: AppNotification[];
   unreadCount: number;
   nextBeforeId: number | null;
 }
@@ -325,8 +329,23 @@ export interface CreateTreatmentRequest {
   sessionDurationMinutes?: number;
   location?: string;
   medications?: string[];
+  procedures?: string[];
   notes?: string;
   preparationInstructions?: string;
+}
+
+export type TreatmentDecision = 'ACCEPT' | 'REJECT';
+
+export interface TreatmentProposal {
+  id: number;
+  doctorName: string;
+  patientName: string;
+  targetTreatmentId: number | null;
+  appliedTreatmentId: number | null;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  plan: CreateTreatmentRequest;
+  createdAt: string;
+  decidedAt: string | null;
 }
 
 export interface UpdateTreatmentRequest {
@@ -370,6 +389,7 @@ export interface TreatmentResponse {
   sessionDurationMinutes?: number;
   location?: string;
   medications: string[];
+  procedures?: string[];
   sideEffects: string[];
   notes?: string;
   preparationInstructions?: string;
@@ -1021,12 +1041,34 @@ class ApiClient {
   }
 
   async getNotificationInbox(beforeId?: number, signal?: AbortSignal): Promise<NotificationInbox> {
-    const query = beforeId === undefined ? '' : `?beforeId=${beforeId}`;
-    return this.request<NotificationInbox>(`/api/notifications/me${query}`, { signal });
+    const query = new URLSearchParams({ includeTreatment: 'true' });
+    if (beforeId !== undefined) query.set('beforeId', String(beforeId));
+    return this.request<NotificationInbox>(`/api/notifications/me?${query}`, { signal });
   }
 
-  async markNotificationRead(id: number): Promise<AppointmentNotification> {
-    return this.request<AppointmentNotification>(`/api/notifications/me/${id}/read`, { method: 'PUT' });
+  async markNotificationRead(id: number): Promise<AppNotification> {
+    return this.request<AppNotification>(`/api/notifications/me/${id}/read`, { method: 'PUT' });
+  }
+
+  proposeTreatment(patientId: number, plan: CreateTreatmentRequest, treatmentId?: number): Promise<TreatmentProposal> {
+    const query = treatmentId === undefined ? '' : `?treatmentId=${treatmentId}`;
+    return this.request<TreatmentProposal>(`/api/treatments/proposals/patient/${patientId}${query}`, {
+      method: 'POST', body: JSON.stringify(plan),
+    });
+  }
+
+  listTreatmentProposals(signal?: AbortSignal): Promise<TreatmentProposal[]> {
+    return this.request<TreatmentProposal[]>('/api/treatments/proposals', { signal });
+  }
+
+  getTreatmentProposal(id: number, signal?: AbortSignal): Promise<TreatmentProposal> {
+    return this.request<TreatmentProposal>(`/api/treatments/proposals/${id}`, { signal });
+  }
+
+  decideTreatmentProposal(id: number, decision: TreatmentDecision): Promise<TreatmentProposal> {
+    return this.request<TreatmentProposal>(`/api/treatments/proposals/${id}/decision`, {
+      method: 'PUT', body: JSON.stringify({ decision }),
+    });
   }
 
   async getProfileSession(signal?: AbortSignal): Promise<Pick<ProfileLoginResponse, 'profile'>> {
