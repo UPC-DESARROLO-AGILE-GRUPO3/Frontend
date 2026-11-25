@@ -39,18 +39,12 @@ const estadoColors = {
 
 export default function TratamientoPacientePage() {
   const { user } = useAuthContext()
-  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const patientProfileId = user && isPatientUser(user) ? user.profile.id : null
   const [treatment, setTreatment] = useState<TreatmentResponse | null>(null)
   const [upcomingSessions, setUpcomingSessions] = useState<TreatmentSessionResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("resumen")
-
-  useEffect(() => {
-    if (user && isPatientUser(user)) {
-      setPatientProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadTreatment = async () => {

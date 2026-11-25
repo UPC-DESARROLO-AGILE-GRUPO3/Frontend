@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -28,16 +27,11 @@ import { RealtimeVitalsCard } from '@/components/dashboard/patient/RealtimeVital
 
 export default function PacienteDashboard() {
   const { user } = useAuthContext()
-  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const patientProfileId = user && isPatientUser(user) ? user.profile.id : null
   
   // Fetch vitals directly in the dashboard page
-  const { data: vitals, error: vitalsError, refresh, isLoading: isVitalsLoading } = usePatientVitals()
-
-  useEffect(() => {
-    if (user && isPatientUser(user)) {
-      setPatientProfileId(user.profile.id)
-    }
-  }, [user])
+  const { data: vitals, error: vitalsError, refresh, isLoading: isVitalsLoading } = usePatientVitals(user?.type === "PATIENT")
+  const deviceNotLinked = vitalsError?.status === 404 && vitalsError.message === "No devices claimed by this patient"
 
   const { dashboard, isLoading, error, refetch } = usePatientDashboard(patientProfileId)
 
@@ -145,7 +139,7 @@ export default function PacienteDashboard() {
           <RealtimeVitalsCard />
 
           {/* Vitals Card Integration */}
-          {vitalsError?.status === 403 ? (
+          {deviceNotLinked && (
             <Card className="border-2 border-yellow-200 bg-yellow-50">
                 <CardContent className="p-8 flex flex-col items-center justify-center text-center space-y-4">
                     <div className="p-3 bg-yellow-100 rounded-full">
@@ -156,15 +150,16 @@ export default function PacienteDashboard() {
                         <p className="text-yellow-700 mt-1">Vincula tu banda IoT para ver tus signos vitales en tiempo real.</p>
                     </div>
                     <div className="pt-2">
-                        <ClaimDeviceDialog />
+                        <ClaimDeviceDialog onClaimSuccess={refresh} />
                     </div>
                 </CardContent>
             </Card>
-          ) : (
+          )}
+          {vitals && (
             <div className="space-y-6">
                 <PatientLatestVitals data={vitals} onRefresh={refresh} isRefreshing={isVitalsLoading} />
                 
-                {vitals?.device_id && (
+                {vitals.device_id && (
                     <PatientVitalsHistory 
                         initialDeviceId={vitals.device_id} 
                         currentPatientId={patientProfileId || undefined}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -19,20 +19,14 @@ import { Search, Plus, Activity, AlertTriangle, Clock, Calendar } from "lucide-r
 
 export default function SymptomsPage() {
   const { user } = useAuthContext()
-  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const patientProfileId = user && isPatientUser(user) ? user.profile.id : null
   const [symptomsList, setSymptomsList] = useState<SymptomResponse[]>([])
-  const [filteredSymptoms, setFilteredSymptoms] = useState<SymptomResponse[]>([])
+  const [weekStart] = useState(() => Date.now() - 7 * 24 * 60 * 60 * 1000)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
-
-  useEffect(() => {
-    if (user && isPatientUser(user)) {
-      setPatientProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadSymptoms = async () => {
@@ -48,7 +42,6 @@ export default function SymptomsPage() {
         data.sort((a, b) => new Date(b.occurrenceDate).getTime() - new Date(a.occurrenceDate).getTime())
         
         setSymptomsList(data)
-        setFilteredSymptoms(data)
       } catch (err) {
         console.error('Error loading symptoms:', err)
         setError('Error al cargar los síntomas')
@@ -60,7 +53,7 @@ export default function SymptomsPage() {
     loadSymptoms()
   }, [patientProfileId])
 
-  useEffect(() => {
+  const filteredSymptoms = useMemo(() => {
     let filtered = symptomsList
 
     // Filter by search term
@@ -100,7 +93,7 @@ export default function SymptomsPage() {
       })
     }
 
-    setFilteredSymptoms(filtered)
+    return filtered
   }, [symptomsList, searchTerm, severityFilter, dateFilter])
 
   const getSeverityColor = (severity: string) => {
@@ -303,9 +296,7 @@ export default function SymptomsPage() {
               <CardContent className="relative z-10">
                 <div className="text-3xl font-bold text-foreground mb-1">
                   {symptomsList.filter(s => {
-                    const symptomDate = new Date(s.occurrenceDate)
-                    const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                    return symptomDate >= weekStart
+                    return new Date(s.occurrenceDate).getTime() >= weekStart
                   }).length}
                 </div>
                 <p className="text-xs text-muted-foreground flex items-center gap-1">

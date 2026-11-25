@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Activity, AlertTriangle, BrainCircuit, CheckCircle2, Droplets, Loader2, RefreshCw, Thermometer } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -32,40 +32,43 @@ export function RealtimeVitalsCard() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const requestInProgress = useRef(false)
 
-  const fetchVitals = useCallback(async (initialLoad = false) => {
-    if (initialLoad) {
-      setIsLoading(true)
-    } else {
-      setIsRefreshing(true)
-    }
+  const fetchVitals = useCallback(() => {
+    if (requestInProgress.current) return
+    requestInProgress.current = true
 
-    try {
-      const latest = await getLatestHealthParameters()
-      setData(latest)
-      setError(null)
-    } catch (err) {
-      if (err instanceof EdgeApiError && err.status === 404) {
-        setData(null)
+    void getLatestHealthParameters()
+      .then(latest => {
+        setData(latest)
         setError(null)
-      } else {
+      }, (err: unknown) => {
         setData(null)
-        setError("No se pudo conectar con EdgeService")
-      }
-    } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
+        setError(err instanceof EdgeApiError && err.status === 404
+          ? null
+          : "El monitor IoT no está disponible en este momento. Puedes volver a intentarlo.")
+      })
+      .finally(() => {
+        requestInProgress.current = false
+        setIsLoading(false)
+        setIsRefreshing(false)
+      })
   }, [])
 
   useEffect(() => {
-    void fetchVitals(true)
+    fetchVitals()
     const intervalId = window.setInterval(() => {
-      void fetchVitals(false)
+      if (!document.hidden) fetchVitals()
     }, POLLING_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
   }, [fetchVitals])
+
+  function refreshVitals() {
+    if (requestInProgress.current) return
+    setIsRefreshing(true)
+    fetchVitals()
+  }
 
   const statusLabel = data?.is_critical ? "Riesgo" : "Normal"
   const statusIcon = data?.is_critical ? AlertTriangle : CheckCircle2
@@ -91,7 +94,7 @@ export function RealtimeVitalsCard() {
             Signos vitales IoT
           </CardTitle>
           <CardDescription>
-            Ultima actualizacion: {formatUpdatedAt(data?.created_at)}
+            Última actualización: {formatUpdatedAt(data?.created_at)}
           </CardDescription>
         </div>
 
@@ -108,7 +111,7 @@ export function RealtimeVitalsCard() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => void fetchVitals(false)}
+            onClick={refreshVitals}
             disabled={isLoading || isRefreshing}
             title="Actualizar"
           >
@@ -122,15 +125,15 @@ export function RealtimeVitalsCard() {
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            Cargando datos del EdgeService...
+            Cargando mediciones…
           </div>
         ) : error ? (
-          <div className="flex min-h-32 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center text-destructive">
+          <div role="status" className="flex min-h-32 items-center justify-center rounded-lg border bg-muted/30 p-4 text-center text-muted-foreground">
             {error}
           </div>
         ) : !data ? (
           <div className="flex min-h-32 items-center justify-center rounded-lg border bg-muted/30 p-4 text-center text-muted-foreground">
-            Sin datos
+            Aún no hay mediciones de demostración.
           </div>
         ) : (
           <div className="space-y-4">

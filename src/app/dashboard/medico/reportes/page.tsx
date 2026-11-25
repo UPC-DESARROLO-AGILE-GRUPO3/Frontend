@@ -51,7 +51,7 @@ const dayNames: Record<string, string> = {
 
 export default function ReportesPage() {
   const { user } = useAuthContext()
-  const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
+  const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
   const [overview, setOverview] = useState<DoctorReportsResponse | null>(null)
   const [patientsByMonth, setPatientsByMonth] = useState<PatientsByMonthResponse | null>(null)
   const [treatmentsByType, setTreatmentsByType] = useState<TreatmentsByTypeResponse | null>(null)
@@ -59,12 +59,6 @@ export default function ReportesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState("mes")
-
-  useEffect(() => {
-    if (user && isDoctorUser(user)) {
-      setDoctorProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadReports = async () => {

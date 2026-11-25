@@ -1,34 +1,23 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { usePatientHistory } from '@/hooks/use-edge-service';
-import { Activity, Thermometer, Droplets, Watch, AlertCircle, CheckCircle2, Siren, RefreshCw } from 'lucide-react'; // Import Siren icon
+import { Activity, Thermometer, Droplets, Watch, AlertCircle, Siren, RefreshCw } from 'lucide-react';
+import type { EdgeHealthRecord } from '@/lib/edge-api';
 import { format, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface PatientLatestVitalsProps {
   deviceId?: string;
-  data?: any;
+  data?: EdgeHealthRecord;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
 
 export function PatientLatestVitals({ deviceId, data, onRefresh, isRefreshing }: PatientLatestVitalsProps) {
   const { history, isLoading: historyLoading, error: historyError, refresh: refreshHistory } = usePatientHistory(deviceId);
-  const [latest, setLatest] = useState<any>(null);
-
-  useEffect(() => {
-    if (data) {
-        setLatest(data);
-    } else if (history && history.length > 0) {
-        // History is already sorted descending in the hook, so index 0 is latest
-        setLatest(history[0]);
-    } else {
-        setLatest(null);
-    }
-  }, [history, data]);
+  const latest = data ?? history[0] ?? null;
 
   if (!deviceId && !data) return null;
 
@@ -146,8 +135,7 @@ export function PatientLatestVitals({ deviceId, data, onRefresh, isRefreshing }:
 
                 {/* Temperature Card */}
                 {(() => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const tempValue = latest.temperature ?? (latest as any).temp ?? 0;
+                    const tempValue = latest.temperature ?? latest.temp ?? 0;
                     return (
                         <div className={`rounded-2xl p-4 border backdrop-blur-sm hover:bg-white/10 transition-colors ${latest.is_critical ? 'bg-red-500/20 border-red-400 text-red-100' : 'bg-white/5 border-white/5'}`}>
                             <div className="flex justify-between items-start mb-2">

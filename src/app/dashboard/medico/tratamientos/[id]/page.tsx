@@ -40,18 +40,12 @@ export default function TreatmentDetailsPage() {
   const params = useParams()
   const treatmentId = params.id as string
   
-  const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
+  const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
   const [treatment, setTreatment] = useState<TreatmentResponse | null>(null)
   const [sessions, setSessions] = useState<TreatmentSessionResponse[]>([])
   const [patient, setPatient] = useState<PatientProfileResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    if (user && isDoctorUser(user)) {
-      setDoctorProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadTreatmentData = async () => {

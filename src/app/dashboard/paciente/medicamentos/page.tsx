@@ -24,17 +24,11 @@ const routeNames: Record<string, string> = {
 
 export default function MedicamentosPage() {
   const { user } = useAuthContext()
-  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const patientProfileId = user && isPatientUser(user) ? user.profile.id : null
   const [medicationsList, setMedicationsList] = useState<MedicationResponse[]>([])
   const [upcomingDoses, setUpcomingDoses] = useState<UpcomingDoseResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user && isPatientUser(user)) {
-      setPatientProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadMedications = async () => {

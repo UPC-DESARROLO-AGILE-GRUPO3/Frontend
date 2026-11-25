@@ -41,19 +41,13 @@ const severityNames: Record<string, string> = {
 
 export default function HistorialPage() {
   const { user } = useAuthContext()
-  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const patientProfileId = user && isPatientUser(user) ? user.profile.id : null
   const [historyEntries, setHistoryEntries] = useState<HistoryEntryResponse[]>([])
   const [allergies, setAllergies] = useState<AllergyResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("historial")
   const [filtroTipo, setFiltroTipo] = useState<string>("todos")
-
-  useEffect(() => {
-    if (user && isPatientUser(user)) {
-      setPatientProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadHistory = async () => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -106,7 +106,7 @@ const managementActions = [
 export default function NuevoSintomaPage() {
   const { user } = useAuthContext()
   const router = useRouter()
-  const [patientProfileId, setPatientProfileId] = useState<number | null>(null)
+  const patientProfileId = user && isPatientUser(user) ? user.profile.id : null
   const [formData, setFormData] = useState({
     symptom: "",
     severity: "",
@@ -124,12 +124,6 @@ export default function NuevoSintomaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCustomSymptom, setShowCustomSymptom] = useState(false)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    if (user && isPatientUser(user)) {
-      setPatientProfileId(user.profile.id)
-    }
-  }, [user])
 
   const handleInputChange = (field: string, value: string | Date | string[]) => {
     setFormData(prev => ({

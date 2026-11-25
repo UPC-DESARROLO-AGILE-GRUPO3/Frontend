@@ -13,7 +13,7 @@ import { ClaimDeviceForm } from "@/components/forms/ClaimDeviceForm";
 import { useState } from "react";
 import { Link as LinkIcon } from "lucide-react";
 
-export function ClaimDeviceDialog() {
+export function ClaimDeviceDialog({ onClaimSuccess }: { onClaimSuccess?: () => void } = {}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -32,8 +32,10 @@ export function ClaimDeviceDialog() {
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-center py-4">
-            {/* We pass a success callback to close the dialog */}
-            <ClaimDeviceForm onClaimSuccess={() => setOpen(false)} />
+            <ClaimDeviceForm onClaimSuccess={() => {
+              setOpen(false);
+              onClaimSuccess?.();
+            }} />
         </div>
       </DialogContent>
     </Dialog>

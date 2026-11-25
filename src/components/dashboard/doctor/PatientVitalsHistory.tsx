@@ -7,12 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { usePatientHistory } from '@/hooks/use-edge-service';
-import { Loader2, Search, RefreshCw, User, Activity, Thermometer, Droplets, Siren, CheckCircle2 } from 'lucide-react';
-import { format, isValid, parse } from 'date-fns';
+import { Loader2, Search, RefreshCw, Activity, Thermometer, Droplets, Siren, CheckCircle2 } from 'lucide-react';
+import { format, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -29,7 +27,7 @@ interface PatientVitalsHistoryProps {
   currentPatientName?: string;
 }
 
-export function PatientVitalsHistory({ initialDeviceId = '', currentPatientId, currentPatientName }: PatientVitalsHistoryProps) {
+export function PatientVitalsHistory({ initialDeviceId = '' }: PatientVitalsHistoryProps) {
   const [deviceIdFilter, setDeviceIdFilter] = useState(initialDeviceId);
   const [targetId, setTargetId] = useState(initialDeviceId);
   
@@ -332,10 +330,8 @@ export function PatientVitalsHistory({ initialDeviceId = '', currentPatientId, c
                                 </span>
                             </TableCell>
                             <TableCell>
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                 {(() => {
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const tempVal = record.temperature ?? (record as any).temp;
+                                    const tempVal = record.temperature ?? record.temp;
                                     const isFever = tempVal > 37.5;
                                     return (
                                         <span className={`font-bold ${isFever ? "text-orange-600" : "text-slate-700"}`}>

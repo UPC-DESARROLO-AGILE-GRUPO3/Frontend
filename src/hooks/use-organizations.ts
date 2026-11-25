@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { dashboard, organizations } from '@/lib/api';
 import type {
   DoctorProfileResponse,
-  OrganizationDashboardResponse,
   CreateDoctorRequest
 } from '@/lib/api';
+import { readErrorMessage, useReadResource } from './use-read-resource';
 
 // Tipo temporal para organizaciones (debe coincidir con el tipo del backend)
 export interface Organization {
@@ -22,156 +22,33 @@ export interface Organization {
   createdAt: string;
 }
 
-interface OrganizationsFilters {
-  search?: string;
-  isActive?: boolean;
-}
+const EMPTY_DOCTORS: DoctorProfileResponse[] = [];
 
-/**
- * Hook para obtener todas las organizaciones (para admin)
- * NOTA: Este endpoint aún no está implementado en el backend
- */
-export function useOrganizations(filters?: OrganizationsFilters) {
-  const [organizationsData, setOrganizationsData] = useState<Organization[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadOrganizations = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      // TODO: Implementar endpoint en el backend para listar organizaciones
-      // const data = await apiClient.getOrganizations(filters);
-      // setOrganizationsData(data);
-      
-      // Por ahora retornamos un array vacío
-      setOrganizationsData([]);
-      console.warn('useOrganizations: Endpoint no implementado en el backend');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar organizaciones');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadOrganizations();
-  }, [filters?.search, filters?.isActive]);
-
-  return {
-    organizations: organizationsData,
-    isLoading,
-    error,
-    refetch: loadOrganizations
-  };
-}
-
-/**
- * Hook para obtener el dashboard de una organización (usa nuevo endpoint de dashboard)
- */
 export function useOrganizationDashboard(organizationId: number | null, doctorIdFilter?: number) {
-  const [dashboardData, setDashboardData] = useState<OrganizationDashboardResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const readDashboard = useMemo(() => organizationId
+    ? () => dashboard.getOrganizationDashboard(organizationId, doctorIdFilter)
+    : null, [organizationId, doctorIdFilter]);
+  const { data, isLoading, error, refresh } = useReadResource(readDashboard);
 
-  const loadDashboard = async () => {
-    if (!organizationId) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await dashboard.getOrganizationDashboard(organizationId, doctorIdFilter);
-      setDashboardData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar dashboard');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, doctorIdFilter]);
-
-  return {
-    dashboard: dashboardData,
-    isLoading,
-    error,
-    refetch: loadDashboard
-  };
+  return { dashboard: data, isLoading, error: readErrorMessage(error, 'Error al cargar dashboard'), refetch: refresh };
 }
 
-/**
- * Hook para obtener los doctores de una organización
- */
 export function useOrganizationDoctors(organizationId: number | null) {
-  const [doctors, setDoctors] = useState<DoctorProfileResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const readDoctors = useMemo(() => organizationId
+    ? () => organizations.getDoctors(organizationId)
+    : null, [organizationId]);
+  const { data, isLoading, error, refresh } = useReadResource(readDoctors);
 
-  const loadDoctors = async () => {
-    if (!organizationId) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await organizations.getDoctors(organizationId);
-      setDoctors(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar doctores');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDoctors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId]);
-
-  return {
-    doctors,
-    isLoading,
-    error,
-    refetch: loadDoctors
-  };
+  return { doctors: data ?? EMPTY_DOCTORS, isLoading, error: readErrorMessage(error, 'Error al cargar doctores'), refetch: refresh };
 }
 
-/**
- * Hook para obtener un doctor específico de una organización
- */
 export function useOrganizationDoctor(organizationId: number | null, doctorId: number | null) {
-  const [doctor, setDoctor] = useState<DoctorProfileResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const readDoctor = useMemo(() => organizationId && doctorId
+    ? () => organizations.getDoctor(organizationId, doctorId)
+    : null, [organizationId, doctorId]);
+  const { data, isLoading, error, refresh } = useReadResource(readDoctor);
 
-  const loadDoctor = async () => {
-    if (!organizationId || !doctorId) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await organizations.getDoctor(organizationId, doctorId);
-      setDoctor(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar doctor');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDoctor();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, doctorId]);
-
-  return {
-    doctor,
-    isLoading,
-    error,
-    refetch: loadDoctor
-  };
+  return { doctor: data, isLoading, error: readErrorMessage(error, 'Error al cargar doctor'), refetch: refresh };
 }
 
 /**

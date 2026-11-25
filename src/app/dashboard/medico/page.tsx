@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -23,13 +22,7 @@ import {
 
 export default function MedicoDashboard() {
   const { user } = useAuthContext()
-  const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (user && isDoctorUser(user)) {
-      setDoctorProfileId(user.profile.id)
-    }
-  }, [user])
+  const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
 
   const { dashboard, isLoading, error, refetch } = useDoctorDashboard(doctorProfileId)
 

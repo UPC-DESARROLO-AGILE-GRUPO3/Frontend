@@ -100,41 +100,35 @@ class EdgeApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    authenticated = true
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
-    const token = this.getToken();
-
-    const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    try {
-      const response = await fetch(url, config);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Edge API Error:', { url, status: response.status, errorData });
-        throw new EdgeApiError(
-          errorData.error || errorData.message || `Edge Service Error: ${response.status}`,
-          response.status
-        );
-      }
-
-      return await response.json();
-    } catch (error) {
-      if (error instanceof EdgeApiError) {
-        throw error;
-      }
-
-      console.error('Edge Network Error:', error);
-      throw new EdgeApiError('No se pudo conectar con EdgeService', 0);
+    const token = authenticated ? this.getToken() : null;
+    const headers = new Headers(options.headers);
+    if (options.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
     }
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+
+    let response: Response;
+    try {
+      response = await fetch(url, { ...options, headers });
+    } catch {
+      throw new EdgeApiError('El monitor IoT no está disponible en este momento.', 0);
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new EdgeApiError(
+        errorData?.error || errorData?.message || `El servicio IoT respondió con el código ${response.status}.`,
+        response.status
+      );
+    }
+
+    return response.json().catch(() => {
+      throw new EdgeApiError('El monitor IoT devolvió una respuesta inesperada.', response.status);
+    });
   }
 
   // ============================================
@@ -158,7 +152,7 @@ class EdgeApiClient {
   }
 
   async getLatestHealthParameters(): Promise<LatestHealthParameters> {
-    const record = await this.request<RawEdgeHealthRecord>('/OnControl/parameters/latest-demo');
+    const record = await this.request<RawEdgeHealthRecord>('/OnControl/parameters/latest-demo', {}, false);
     return this.normalizeHealthRecord(record);
   }
 

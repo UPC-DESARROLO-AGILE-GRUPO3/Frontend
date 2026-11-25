@@ -1,3 +1,5 @@
+import Image from "next/image"
+
 interface OnControlLogoProps {
   className?: string
   size?: "sm" | "md" | "lg"
@@ -10,19 +12,22 @@ export function OnControlLogo({ className = "", size = "md" }: OnControlLogoProp
     lg: "text-4xl",
   }
   
-  const imgSizeClasses = {
-    sm: "w-9 h-9",
-    md: "w-12 h-12",
-    lg: "w-16 h-16",
+  const imageSizes = {
+    sm: 36,
+    md: 48,
+    lg: 64,
   }
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="relative">
-        <img 
-          src="/favicon.ico" 
-          alt="Logo" 
-          className={`${imgSizeClasses[size]} object-contain`}
+        <Image
+          src="/favicon.ico"
+          alt="Logo"
+          width={imageSizes[size]}
+          height={imageSizes[size]}
+          className="object-contain"
+          unoptimized
         />
       </div>
       <span className={`font-bold ${sizeClasses[size]}`}>

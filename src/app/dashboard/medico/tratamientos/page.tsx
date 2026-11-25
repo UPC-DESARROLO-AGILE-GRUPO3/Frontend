@@ -41,19 +41,13 @@ const estadoNames: Record<string, string> = {
 
 export default function TratamientosPage() {
   const { user } = useAuthContext()
-  const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
+  const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
   const [tratamientosList, setTratamientosList] = useState<TreatmentResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroTipo, setFiltroTipo] = useState("todos")
-
-  useEffect(() => {
-    if (user && isDoctorUser(user)) {
-      setDoctorProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadTreatments = async () => {

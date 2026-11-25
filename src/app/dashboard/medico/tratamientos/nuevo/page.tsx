@@ -113,7 +113,7 @@ const locations = [
 export default function NuevoTratamientoPage() {
   const { user } = useAuthContext()
   const router = useRouter()
-  const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
+  const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
   const [patients, setPatients] = useState<PatientProfileResponse[]>([])
   const [isLoadingPatients, setIsLoadingPatients] = useState(true)
   
@@ -134,12 +134,6 @@ export default function NuevoTratamientoPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
-
-  useEffect(() => {
-    if (user && isDoctorUser(user)) {
-      setDoctorProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadPatients = async () => {

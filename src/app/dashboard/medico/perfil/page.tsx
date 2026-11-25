@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -26,21 +26,14 @@ import {
 } from "lucide-react"
 
 export default function MedicoPerfilPage() {
-  const { user } = useAuthContext()
-  const [doctorData, setDoctorData] = useState<DoctorProfileResponse | null>(null)
+  const { user, isLoading } = useAuthContext()
+  const [draft, setDoctorData] = useState<DoctorProfileResponse | null>(null)
+  const savedProfile = user && isDoctorUser(user) ? user.profile as DoctorProfileResponse : null
+  const doctorData = draft?.id === savedProfile?.id ? draft : savedProfile
   const [isEditing, setIsEditing] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-
-  useEffect(() => {
-    if (!user || !isDoctorUser(user)) return
-
-    // Use the profile data from the authenticated user
-    setDoctorData(user.profile as DoctorProfileResponse)
-    setIsLoading(false)
-  }, [user])
 
   const handleSave = async () => {
     if (!doctorData || !user || !isDoctorUser(user)) return
@@ -61,6 +54,7 @@ export default function MedicoPerfilPage() {
       
       // setDoctorData(updatedProfile)
       setError("La actualización de perfil aún no está implementada en el backend")
+      setDoctorData(null)
       setIsEditing(false)
     } catch (err) {
       console.error('Error updating profile:', err)
@@ -110,6 +104,7 @@ export default function MedicoPerfilPage() {
                 if (isEditing) {
                   setSuccess("")
                   setError("")
+                  setDoctorData(null)
                 }
                 setIsEditing(!isEditing)
               }}
