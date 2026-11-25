@@ -11,6 +11,7 @@ const titles: Record<AppointmentNotification["type"], string> = {
   SCHEDULED: "Nueva cita programada",
   CANCELLED: "Cita cancelada",
   RESCHEDULED: "Cita reprogramada",
+  REMINDER: "Recordatorio de cita",
 }
 
 const dateFormat = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" })

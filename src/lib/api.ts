@@ -234,7 +234,7 @@ export interface AppointmentResponse {
 export interface AppointmentNotification {
   id: number;
   appointmentId: number;
-  type: 'SCHEDULED' | 'CANCELLED' | 'RESCHEDULED';
+  type: 'SCHEDULED' | 'CANCELLED' | 'RESCHEDULED' | 'REMINDER';
   appointmentDate: string;
   previousAppointmentDate?: string | null;
   createdAt: string;

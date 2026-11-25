@@ -434,7 +434,7 @@ export default function NuevaCitaPage() {
                   <div className="space-y-1">
                     <Label htmlFor="reminder" className="text-base font-semibold">Enviar Recordatorio</Label>
                     <p className="text-sm text-muted-foreground font-medium">
-                      El paciente recibirá un recordatorio antes de la cita
+                      El paciente recibirá un aviso en la campana durante las 24 horas previas a la cita.
                     </p>
                   </div>
                   <Switch
