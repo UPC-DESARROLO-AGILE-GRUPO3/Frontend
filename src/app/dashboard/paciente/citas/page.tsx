@@ -41,6 +41,7 @@ export default function CitasPacientePage() {
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState("")
+  const [updatingStatus, setUpdatingStatus] = useState(false)
   const [appointmentToReschedule, setAppointmentToReschedule] = useState<AppointmentResponse | null>(null)
 
   useEffect(() => {
@@ -122,15 +123,21 @@ export default function CitasPacientePage() {
     }
   }
 
-  const handleCancelAppointment = async (appointmentId: number) => {
+  const handleStatusUpdate = async (appointmentId: number, status: "CONFIRMED" | "CANCELLED") => {
+    const confirming = status === "CONFIRMED"
+    setUpdatingStatus(true)
     setActionError(null)
     setActionSuccess("")
     try {
-      const updated = await appointmentsApi.updateStatus(appointmentId, "CANCELLED", "Cancelada por el paciente")
+      const reason = confirming ? undefined : "Cancelada por el paciente"
+      const updated = await appointmentsApi.updateStatus(appointmentId, status, reason)
       setAppointments((items) => items.map((item) => item.id === updated.id ? updated : item))
-      setActionSuccess("Cita cancelada.")
+      setActionSuccess(confirming ? "Cita confirmada." : "Cita cancelada.")
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Error al cancelar la cita")
+      const fallback = confirming ? "Error al confirmar la cita" : "Error al cancelar la cita"
+      setActionError(err instanceof Error ? err.message : fallback)
+    } finally {
+      setUpdatingStatus(false)
     }
   }
 
@@ -375,10 +382,24 @@ export default function CitasPacientePage() {
                     <div className="flex flex-col gap-2">
                       {editableStatuses.includes(appointment.status) && (
                         <>
+                          {(appointment.status === "SCHEDULED" || appointment.status === "RESCHEDULED") && (
+                            isFuture(parseISO(appointment.appointmentDate)) ? (
+                              <Button
+                                size="sm"
+                                disabled={updatingStatus}
+                                onClick={() => handleStatusUpdate(appointment.id, "CONFIRMED")}
+                              >
+                                Confirmar cita
+                              </Button>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">La cita ya venció.</p>
+                            )
+                          )}
                           {isFuture(parseISO(appointment.appointmentDate)) && (
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={updatingStatus}
                               className="border-2 hover:bg-primary hover:text-primary-foreground"
                               onClick={() => setAppointmentToReschedule(appointment)}
                             >
@@ -388,7 +409,8 @@ export default function CitasPacientePage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleCancelAppointment(appointment.id)}
+                            disabled={updatingStatus}
+                            onClick={() => handleStatusUpdate(appointment.id, "CANCELLED")}
                             className="text-destructive hover:text-destructive border-2 border-destructive/20 hover:border-destructive hover:bg-destructive/10"
                           >
                             Cancelar
