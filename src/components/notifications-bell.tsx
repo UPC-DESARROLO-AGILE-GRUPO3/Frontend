@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Bell } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { apiClient, type AppNotification, type NotificationInbox } from "@/lib/api"
+import { ApiRequestError, apiClient, type AppNotification, type NotificationInbox } from "@/lib/api"
 
 const titles: Record<AppNotification["type"], string> = {
   SCHEDULED: "Nueva cita programada",
@@ -19,6 +19,22 @@ const titles: Record<AppNotification["type"], string> = {
 
 const dateFormat = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" })
 
+function mergeInbox(current: NotificationInbox | null, latest: NotificationInbox): NotificationInbox {
+  if (!current || !latest.items.length) return latest
+  const knownItems = new Map(current.items.map((item) => [item.id, item]))
+  if (!latest.items.some((item) => knownItems.has(item.id))) return latest
+
+  const recent = latest.items.map((item) => {
+    const readAt = item.readAt ?? knownItems.get(item.id)?.readAt ?? null
+    return { ...item, readAt }
+  })
+  const lastRecentId = recent[recent.length - 1].id
+  const older = current.items.filter((item) => item.id < lastRecentId)
+  return older.length
+    ? { ...latest, items: [...recent, ...older], nextBeforeId: current.nextBeforeId }
+    : { ...latest, items: recent }
+}
+
 export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: {
   appointmentsHref: string
   treatmentProposalsHref: string
@@ -27,43 +43,82 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
   const [inbox, setInbox] = useState<NotificationInbox | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
+  const refreshInbox = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
+    const { signal } = controller
     let loading = false
+    let refreshPending = false
+    let retryTimer: number | undefined
+    let retryDelay = 1000
 
     async function refresh() {
-      if (loading || controller.signal.aborted) return
+      if (signal.aborted) return
+      if (loading) {
+        refreshPending = true
+        return
+      }
       loading = true
       try {
-        const data = await apiClient.getNotificationInbox(undefined, controller.signal)
-        if (!controller.signal.aborted) {
-          setInbox(data)
+        const data = await apiClient.getNotificationInbox(undefined, signal)
+        if (!signal.aborted) {
+          setInbox((current) => mergeInbox(current, data))
           setError("")
         }
       } catch {
-        if (!controller.signal.aborted) setError("No pudimos cargar las notificaciones.")
+        if (!signal.aborted) setError("No pudimos cargar las notificaciones.")
       } finally {
         loading = false
+        if (refreshPending) {
+          refreshPending = false
+          void refresh()
+        }
       }
     }
 
-    void refresh()
-    const timer = open ? undefined : window.setInterval(() => {
+    async function listen() {
+      try {
+        await apiClient.watchNotificationInbox(() => {
+          retryDelay = 1000
+          void refresh()
+        }, signal)
+      } catch (error) {
+        if (error instanceof ApiRequestError && [401, 403].includes(error.status)) return
+      }
+      if (!signal.aborted) {
+        retryTimer = window.setTimeout(() => void listen(), retryDelay)
+        retryDelay = Math.min(retryDelay * 2, 30000)
+      }
+    }
+
+    const refreshWhenVisible = () => {
       if (!document.hidden) void refresh()
-    }, 30000)
+    }
+    refreshInbox.current = () => void refresh()
+    void refresh()
+    void listen()
+    const timer = window.setInterval(refreshWhenVisible, 30000)
+    document.addEventListener("visibilitychange", refreshWhenVisible)
     return () => {
+      refreshInbox.current = null
       window.clearInterval(timer)
+      window.clearTimeout(retryTimer)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
       controller.abort()
     }
-  }, [open])
+  }, [])
 
   async function showOlder(beforeId: number) {
     setBusy(true)
     setError("")
     try {
       const older = await apiClient.getNotificationInbox(beforeId)
-      setInbox((current) => current ? { ...older, items: [...current.items, ...older.items] } : older)
+      setInbox((current) => current?.nextBeforeId === beforeId ? {
+        ...current,
+        items: [...current.items, ...older.items],
+        nextBeforeId: older.nextBeforeId,
+      } : current)
     } catch {
       setError("No pudimos cargar las notificaciones anteriores.")
     } finally {
@@ -78,9 +133,12 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
       const updated = await apiClient.markNotificationRead(notification.id)
       setInbox((current) => current ? {
         ...current,
-        unreadCount: Math.max(0, current.unreadCount - 1),
+        unreadCount: current.items.some((item) => item.id === updated.id && !item.readAt)
+          ? Math.max(0, current.unreadCount - 1)
+          : current.unreadCount,
         items: current.items.map((item) => item.id === updated.id ? updated : item),
       } : null)
+      refreshInbox.current?.()
     } catch {
       setError("No pudimos marcar la notificación como leída.")
     } finally {
@@ -91,7 +149,10 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
   const unread = inbox?.unreadCount ?? 0
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(next) => {
+      setOpen(next)
+      if (next) refreshInbox.current?.()
+    }}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative" aria-label={unread ? `Notificaciones, ${unread} sin leer` : "Notificaciones"}>
           <Bell aria-hidden="true" />

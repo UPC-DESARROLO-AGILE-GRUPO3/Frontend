@@ -728,12 +728,13 @@ class ApiClient {
     
     const requestController = new AbortController();
     const timeoutId = setTimeout(() => requestController.abort(), 30000);
+    const abortRequest = () => requestController.abort();
 
     if (options.signal) {
       if (options.signal.aborted) {
         requestController.abort();
       } else {
-        options.signal.addEventListener('abort', () => requestController.abort(), { once: true });
+        options.signal.addEventListener('abort', abortRequest, { once: true });
       }
     }
 
@@ -824,6 +825,7 @@ class ApiClient {
       throw error;
     } finally {
       clearTimeout(timeoutId);
+      options.signal?.removeEventListener('abort', abortRequest);
     }
   }
 
@@ -1044,6 +1046,39 @@ class ApiClient {
     const query = new URLSearchParams({ includeTreatment: 'true' });
     if (beforeId !== undefined) query.set('beforeId', String(beforeId));
     return this.request<NotificationInbox>(`/api/notifications/me?${query}`, { signal });
+  }
+
+  async watchNotificationInbox(onChange: () => void, signal: AbortSignal): Promise<void> {
+    this.loadTokenFromStorage();
+    if (!this.token) throw new ApiRequestError('La sesión no está disponible', 401);
+
+    const response = await fetch(`${this.baseURL}/api/notifications/me/events`, {
+      headers: { Accept: 'text/event-stream', Authorization: `Bearer ${this.token}` },
+      cache: 'no-store',
+      signal,
+    });
+    if (!response.ok || !response.body || !response.headers.get('content-type')?.startsWith('text/event-stream')) {
+      await response.body?.cancel();
+      throw new ApiRequestError('No pudimos conectar las notificaciones en vivo', response.status);
+    }
+
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let pending = '';
+    try {
+      while (!signal.aborted) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        pending += value.replaceAll('\r', '');
+        let boundary = pending.indexOf('\n\n');
+        while (boundary !== -1) {
+          if (/^event: ?inbox$/m.test(pending.slice(0, boundary))) onChange();
+          pending = pending.slice(boundary + 2);
+          boundary = pending.indexOf('\n\n');
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async markNotificationRead(id: number): Promise<AppNotification> {
