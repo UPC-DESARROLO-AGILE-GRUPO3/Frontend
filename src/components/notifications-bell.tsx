@@ -6,6 +6,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ApiRequestError, apiClient, type AppNotification, type NotificationInbox } from "@/lib/api"
+import { ReminderPreferencesDialog } from "@/components/reminder-preferences-dialog"
+import { playReminderTone } from "@/lib/reminder-sound"
 
 const titles: Record<AppNotification["type"], string> = {
   SCHEDULED: "Nueva cita programada",
@@ -40,10 +42,12 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
   treatmentProposalsHref: string
 }) {
   const [open, setOpen] = useState(false)
+  const [preferencesOpen, setPreferencesOpen] = useState(false)
   const [inbox, setInbox] = useState<NotificationInbox | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
   const refreshInbox = useRef<(() => void) | null>(null)
+  const bell = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -52,6 +56,7 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
     let refreshPending = false
     let retryTimer: number | undefined
     let retryDelay = 1000
+    let latestNoticeId: number | null = null
 
     async function refresh() {
       if (signal.aborted) return
@@ -63,6 +68,17 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
       try {
         const data = await apiClient.getNotificationInbox(undefined, signal)
         if (!signal.aborted) {
+          const previousId = latestNoticeId
+          latestNoticeId = Math.max(previousId ?? 0, data.items[0]?.id ?? 0)
+          if (previousId !== null && !document.hidden && navigator.userActivation?.hasBeenActive) {
+            for (const item of data.items) {
+              if (item.id <= previousId) break
+              if (item.type === "REMINDER" && !item.readAt && item.reminderTone && item.reminderTone !== "SILENT") {
+                void playReminderTone(item.reminderTone).catch(() => {})
+                break
+              }
+            }
+          }
           setInbox((current) => mergeInbox(current, data))
           setError("")
         }
@@ -149,12 +165,13 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
   const unread = inbox?.unreadCount ?? 0
 
   return (
+    <>
     <Popover open={open} onOpenChange={(next) => {
       setOpen(next)
       if (next) refreshInbox.current?.()
     }}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label={unread ? `Notificaciones, ${unread} sin leer` : "Notificaciones"}>
+        <Button ref={bell} variant="ghost" size="icon" className="relative" aria-label={unread ? `Notificaciones, ${unread} sin leer` : "Notificaciones"}>
           <Bell aria-hidden="true" />
           {unread > 0 && (
             <span aria-hidden="true" className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 text-[11px] leading-5 text-primary-foreground">
@@ -163,8 +180,15 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" aria-label="Notificaciones" className="w-[min(22rem,calc(100vw-2rem))] p-0">
-        <h2 className="border-b px-4 py-3 text-base font-semibold">Notificaciones</h2>
+      <PopoverContent align="end" aria-label="Notificaciones" className="w-[min(22rem,calc(100vw-2rem))] p-0"
+        onCloseAutoFocus={(event) => { if (preferencesOpen) event.preventDefault() }}>
+        <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
+          <h2 className="text-base font-semibold">Notificaciones</h2>
+          <Button variant="ghost" size="sm" aria-label="Configurar recordatorios" onClick={() => {
+            setPreferencesOpen(true)
+            setOpen(false)
+          }}>Configurar</Button>
+        </div>
         <div className="max-h-[min(24rem,65vh)] overflow-y-auto">
           {error && <p role="alert" className="px-4 py-3 text-sm text-destructive">{error}</p>}
           {!inbox && !error && <p role="status" className="px-4 py-3 text-sm text-muted-foreground">Cargando avisos…</p>}
@@ -219,5 +243,10 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
         </div>
       </PopoverContent>
     </Popover>
+    {preferencesOpen && <ReminderPreferencesDialog onClose={() => {
+      setPreferencesOpen(false)
+      requestAnimationFrame(() => bell.current?.focus())
+    }} />}
+    </>
   )
 }

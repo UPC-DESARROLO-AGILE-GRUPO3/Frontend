@@ -231,6 +231,22 @@ export interface AppointmentResponse {
   cancelledAt?: string;
 }
 
+export type ReminderFrequency = 'DAY_BEFORE' | 'DAY_OF' | 'BOTH';
+export type ReminderTone = 'SILENT' | 'SOFT' | 'CHIME';
+
+export interface ReminderPreferenceInput {
+  time: string;
+  timeZone: string;
+  frequency: ReminderFrequency;
+  tone: ReminderTone;
+}
+
+export interface ReminderPreferences extends Omit<ReminderPreferenceInput, 'time' | 'timeZone'> {
+  configured: boolean;
+  time: string | null;
+  timeZone: string | null;
+}
+
 export type AppNotification = {
   id: number;
   createdAt: string;
@@ -240,6 +256,7 @@ export type AppNotification = {
   appointmentId: number;
   appointmentDate: string;
   previousAppointmentDate?: string | null;
+  reminderTone?: ReminderTone;
 } | {
   type: 'TREATMENT_PROPOSED' | 'TREATMENT_ACCEPTED' | 'TREATMENT_REJECTED';
   proposalId: number;
@@ -1083,6 +1100,16 @@ class ApiClient {
 
   async markNotificationRead(id: number): Promise<AppNotification> {
     return this.request<AppNotification>(`/api/notifications/me/${id}/read`, { method: 'PUT' });
+  }
+
+  getReminderPreferences(signal?: AbortSignal): Promise<ReminderPreferences> {
+    return this.request<ReminderPreferences>('/api/notifications/me/reminder-preferences', { signal });
+  }
+
+  saveReminderPreferences(input: ReminderPreferenceInput): Promise<ReminderPreferences> {
+    return this.request<ReminderPreferences>('/api/notifications/me/reminder-preferences', {
+      method: 'PUT', body: JSON.stringify(input),
+    });
   }
 
   proposeTreatment(patientId: number, plan: CreateTreatmentRequest, treatmentId?: number): Promise<TreatmentProposal> {
