@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { format, parseISO } from "date-fns"
@@ -38,10 +38,11 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { appointments, type AppointmentResponse } from "@/lib/api"
+import { ApiRequestError, appointments, type AppointmentResponse } from "@/lib/api"
 
 const statusLabels: Record<AppointmentResponse["status"], string> = {
   SCHEDULED: "Programada",
+  RESCHEDULED: "Reprogramada",
   CONFIRMED: "Confirmada",
   IN_PROGRESS: "En curso",
   COMPLETED: "Completada",
@@ -51,6 +52,7 @@ const statusLabels: Record<AppointmentResponse["status"], string> = {
 
 const statusClasses: Record<AppointmentResponse["status"], string> = {
   SCHEDULED: "border-blue-200 bg-blue-50 text-blue-700",
+  RESCHEDULED: "border-blue-200 bg-blue-50 text-blue-700",
   CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-700",
   IN_PROGRESS: "border-amber-200 bg-amber-50 text-amber-700",
   COMPLETED: "border-primary/30 bg-primary/10 text-primary",
@@ -77,9 +79,18 @@ function formatDateTime(value: string) {
 export default function AppointmentDetailsPage() {
   const params = useParams()
   const appointmentId = Number(params.id)
+  return (
+    <AuthGuard requiredRole="DOCTOR">
+      <DoctorAppointmentDetails key={appointmentId} appointmentId={appointmentId} />
+    </AuthGuard>
+  )
+}
 
+function DoctorAppointmentDetails({ appointmentId }: { appointmentId: number }) {
+  const validAppointmentId = Number.isSafeInteger(appointmentId) && appointmentId > 0
   const [appointment, setAppointment] = useState<AppointmentResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -87,30 +98,22 @@ export default function AppointmentDetailsPage() {
   const [cancellationReason, setCancellationReason] = useState("")
   const [followUpNotes, setFollowUpNotes] = useState("")
 
-  const loadAppointment = useCallback(async () => {
-    if (!Number.isInteger(appointmentId) || appointmentId <= 0) {
-      setError("El identificador de la cita no es válido")
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      setIsLoading(true)
-      setError("")
-      const data = await appointments.getById(appointmentId)
+  useEffect(() => {
+    if (!validAppointmentId) return
+    const controller = new AbortController()
+    void appointments.getById(appointmentId, controller.signal).then((data) => {
+      if (controller.signal.aborted) return
       setAppointment(data)
       setFollowUpNotes(data.followUpNotes ?? "")
-    } catch (err) {
-      console.error("Error loading appointment:", err)
-      setError(err instanceof Error ? err.message : "No se pudo cargar la cita")
-    } finally {
       setIsLoading(false)
-    }
-  }, [appointmentId])
-
-  useEffect(() => {
-    void loadAppointment()
-  }, [loadAppointment])
+    }, (failure: unknown) => {
+      if (controller.signal.aborted) return
+      const unavailable = failure instanceof ApiRequestError && [403, 404].includes(failure.status)
+      setError(unavailable ? "Esta cita no está disponible para tu cuenta." : "No se pudo cargar la cita.")
+      setIsLoading(false)
+    })
+    return () => controller.abort()
+  }, [appointmentId, validAppointmentId, loadAttempt])
 
   const updateStatus = async (
     status: AppointmentResponse["status"],
@@ -157,20 +160,17 @@ export default function AppointmentDetailsPage() {
     }
   }
 
-  if (isLoading) {
+  if (validAppointmentId && isLoading) {
     return (
-      <AuthGuard requiredRole="DOCTOR">
-        <DashboardLayout>
-          <Loading message="Cargando detalle de la cita..." />
-        </DashboardLayout>
-      </AuthGuard>
+      <DashboardLayout>
+        <Loading message="Cargando detalle de la cita..." />
+      </DashboardLayout>
     )
   }
 
-  if (error && !appointment) {
+  if (!validAppointmentId || (error && !appointment)) {
     return (
-      <AuthGuard requiredRole="DOCTOR">
-        <DashboardLayout>
+      <DashboardLayout>
           <div className="mx-auto max-w-4xl space-y-6">
             <Button variant="outline" asChild className="border-2">
               <Link href="/dashboard/medico/citas">
@@ -180,20 +180,24 @@ export default function AppointmentDetailsPage() {
             </Button>
             <Alert variant="destructive" className="border-2">
               <AlertTriangle className="h-5 w-5" />
-              <AlertDescription className="font-semibold">{error}</AlertDescription>
+              <AlertDescription className="font-semibold">
+                {validAppointmentId ? error : "El identificador de la cita no es válido"}
+              </AlertDescription>
             </Alert>
-            <Button onClick={() => void loadAppointment()}>Intentar de nuevo</Button>
+            {validAppointmentId && <Button onClick={() => {
+              setIsLoading(true)
+              setError("")
+              setLoadAttempt((attempt) => attempt + 1)
+            }}>Intentar de nuevo</Button>}
           </div>
-        </DashboardLayout>
-      </AuthGuard>
+      </DashboardLayout>
     )
   }
 
   if (!appointment) return null
 
   return (
-    <AuthGuard requiredRole="DOCTOR">
-      <DashboardLayout>
+    <DashboardLayout>
         <div className="mx-auto max-w-6xl space-y-8">
           <Button variant="outline" asChild className="border-2 hover:bg-primary hover:text-primary-foreground">
             <Link href="/dashboard/medico/citas">
@@ -237,7 +241,7 @@ export default function AppointmentDetailsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {appointment.status === "SCHEDULED" && (
+                  {(appointment.status === "SCHEDULED" || appointment.status === "RESCHEDULED") && (
                     <Button disabled={isSaving} onClick={() => void updateStatus("CONFIRMED")}>
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Confirmar cita
@@ -260,7 +264,7 @@ export default function AppointmentDetailsPage() {
                       Completar
                     </Button>
                   )}
-                  {(appointment.status === "SCHEDULED" || appointment.status === "CONFIRMED") && (
+                  {(['SCHEDULED', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status)) && (
                     <Button
                       disabled={isSaving}
                       variant="destructive"
@@ -437,7 +441,6 @@ export default function AppointmentDetailsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </DashboardLayout>
-    </AuthGuard>
+    </DashboardLayout>
   )
 }

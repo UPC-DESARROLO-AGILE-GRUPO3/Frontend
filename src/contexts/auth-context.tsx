@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, ReactNode } from 'react'
+import React, { createContext, useContext, useSyncExternalStore, ReactNode } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import type { 
   LoginRequest, 
@@ -22,6 +22,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const subscribeToHydration = () => () => {}
+const getClientSnapshot = () => true
+const getServerSnapshot = () => false
 
 interface AuthProviderProps {
   children: ReactNode
@@ -39,10 +42,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuthContext() {
   const context = useContext(AuthContext)
+  // Each streamed route starts with the same session state as its server HTML.
+  const hydrated = useSyncExternalStore(subscribeToHydration, getClientSnapshot, getServerSnapshot)
   if (context === undefined) {
     throw new Error('useAuthContext must be used within an AuthProvider')
   }
-  return context
+  return hydrated ? context : { ...context, user: null, isLoading: true, isAuthenticated: false }
 }
 
 // Helper function to get user ID from different user types

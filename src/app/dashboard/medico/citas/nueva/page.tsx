@@ -68,7 +68,7 @@ const locations = [
 export default function NuevaCitaPage() {
   const { user } = useAuthContext()
   const router = useRouter()
-  const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null)
+  const doctorProfileId = user && isDoctorUser(user) ? user.profile.id : null
   const [patients, setPatients] = useState<PatientProfileResponse[]>([])
   const [isLoadingPatients, setIsLoadingPatients] = useState(true)
   
@@ -87,12 +87,6 @@ export default function NuevaCitaPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
-
-  useEffect(() => {
-    if (user && isDoctorUser(user)) {
-      setDoctorProfileId(user.profile.id)
-    }
-  }, [user])
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -154,11 +148,15 @@ export default function NuevaCitaPage() {
         sendReminder: formData.sendReminder
       }
 
-      const patientId = typeof formData.patientProfileId === 'string' 
-        ? parseInt(formData.patientProfileId) 
-        : formData.patientProfileId;
-      
-      await appointments.create(doctorProfileId, patientId, appointmentData)
+      const patient = patients.find((item) => item.id === Number(formData.patientProfileId))
+      if (!user || !isDoctorUser(user) || !user.profile.accountProfileId || !patient?.accountProfileId) {
+        throw new Error("No se pudo identificar al médico o al paciente de la cita")
+      }
+      await appointments.create(
+        user.profile.accountProfileId,
+        patient.accountProfileId,
+        appointmentData,
+      )
       setSuccess(true)
 
       setTimeout(() => {

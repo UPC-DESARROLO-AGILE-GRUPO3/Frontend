@@ -34,6 +34,7 @@ export interface Organization {
 
 export interface DoctorProfile {
   id: number;
+  accountProfileId?: number;
   profileId: string; // DOC-{timestamp}
   email: string;
   firstName: string;
@@ -62,6 +63,8 @@ export interface DoctorProfile {
 
 export interface PatientProfile {
   id: number;
+  accountProfileId?: number;
+  doctorAccountProfileId?: number;
   profileId: string; // PAT-{timestamp}
   email: string;
   firstName: string;

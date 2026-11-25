@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuthContext, getUserId } from "@/contexts/auth-context"
+import { useAuthContext } from "@/contexts/auth-context"
 import { AuthGuard } from "@/components/auth-guard-updated"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,13 +28,13 @@ export default function CalendarPage() {
 
   useEffect(() => {
     const loadAppointments = async () => {
-      if (!user) return
+      if (user?.type !== "DOCTOR" || !user.profile.accountProfileId) return
       
       try {
         setIsLoading(true)
         setError(null)
 
-        const data = await appointments.getDoctorAppointments(getUserId(user))
+        const data = await appointments.getDoctorAppointments(user.profile.accountProfileId)
         setAppointmentsList(data)
 
       } catch (err) {

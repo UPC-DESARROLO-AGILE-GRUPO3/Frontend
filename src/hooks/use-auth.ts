@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { startTransition, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   auth, 
@@ -19,16 +19,6 @@ interface AuthState {
   isAuthenticated: boolean
 }
 
-export function useAuth() {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    isLoading: true, // Start with true to check authentication on mount
-    isAuthenticated: false,
-  })
-  
-  const router = useRouter()
-
-  // Helper to transform LoginResponse to User
   const transformLoginResponseToUser = (response: LoginResponse): User | null => {
     // Check if it's an organization response (has 'type' and 'organizationName')
     if ('type' in response && response.type === 'ORGANIZATION' && 'organizationName' in response) {
@@ -78,42 +68,47 @@ export function useAuth() {
     return null
   }
 
+export function useAuth() {
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    isLoading: true,
+    isAuthenticated: false,
+  })
+  const router = useRouter()
+
   // Load user from localStorage on mount
   useEffect(() => {
-    const loadUser = async () => {
-      if (typeof window === 'undefined') return
-      
+    const controller = new AbortController()
+
+    async function loadSession() {
+      let user: User | null = null
       try {
         const token = localStorage.getItem('auth_token')
-        const userType = localStorage.getItem('userType') as 'ORGANIZATION' | 'DOCTOR' | 'PATIENT' | null
-        const userDataStr = localStorage.getItem('userData')
-        
-        if (token && userType && userDataStr) {
-          const userData = JSON.parse(userDataStr)
-          
-          setAuthState({
-            user: userData as User,
-            isLoading: false,
-            isAuthenticated: true,
-          })
-        } else {
-          setAuthState({
-            user: null,
-            isLoading: false,
-            isAuthenticated: false,
-          })
+        const userData = localStorage.getItem('userData')
+        if (token && userData) {
+          const saved = JSON.parse(userData) as User
+          const needsProfile = (saved.type !== 'ORGANIZATION' && !saved.profile.accountProfileId)
+            || (saved.type === 'PATIENT' && !saved.profile.doctorAccountProfileId)
+          if (needsProfile) {
+            const { profile } = await apiClient.getProfileSession(controller.signal)
+            user = transformLoginResponseToUser({ profile, token, message: '' })
+            if (user && !controller.signal.aborted) localStorage.setItem('userData', JSON.stringify(user))
+          } else {
+            user = saved
+          }
         }
       } catch (error) {
-        console.error('Failed to load user:', error)
-        setAuthState({
-          user: null,
-          isLoading: false,
-          isAuthenticated: false,
-        })
+        if (!controller.signal.aborted) console.error('Failed to load user:', error)
+      }
+
+      if (!controller.signal.aborted) {
+        // Keep the server and client loading states aligned while streamed routes hydrate.
+        startTransition(() => setAuthState({ user, isLoading: false, isAuthenticated: user !== null }))
       }
     }
 
-    loadUser()
+    void loadSession()
+    return () => controller.abort()
   }, [])
 
   const login = useCallback(async (credentials: LoginRequest) => {
