@@ -268,6 +268,25 @@ export interface NotificationInbox {
   nextBeforeId: number | null;
 }
 
+export const chatChangedEvent = 'oncontrol:chat-changed';
+
+export interface ChatConversation {
+  peerId: number;
+  name: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface ChatHistory {
+  messages: ChatMessage[];
+  hasMore: boolean;
+}
+
 export class ApiRequestError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -1065,7 +1084,7 @@ class ApiClient {
     return this.request<NotificationInbox>(`/api/notifications/me?${query}`, { signal });
   }
 
-  async watchNotificationInbox(onChange: () => void, signal: AbortSignal): Promise<void> {
+  async watchNotificationInbox(onChange: () => void, signal: AbortSignal, onChatChange: () => void): Promise<void> {
     this.loadTokenFromStorage();
     if (!this.token) throw new ApiRequestError('La sesión no está disponible', 401);
 
@@ -1079,6 +1098,7 @@ class ApiClient {
       throw new ApiRequestError('No pudimos conectar las notificaciones en vivo', response.status);
     }
 
+    onChatChange();
     const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
     let pending = '';
     try {
@@ -1088,7 +1108,9 @@ class ApiClient {
         pending += value.replaceAll('\r', '');
         let boundary = pending.indexOf('\n\n');
         while (boundary !== -1) {
-          if (/^event: ?inbox$/m.test(pending.slice(0, boundary))) onChange();
+          const event = pending.slice(0, boundary);
+          if (/^event: ?inbox$/m.test(event)) onChange();
+          else if (/^event: ?chat$/m.test(event)) onChatChange();
           pending = pending.slice(boundary + 2);
           boundary = pending.indexOf('\n\n');
         }
@@ -1096,6 +1118,21 @@ class ApiClient {
     } finally {
       reader.releaseLock();
     }
+  }
+
+  getChatConversations(signal?: AbortSignal): Promise<ChatConversation[]> {
+    return this.request<ChatConversation[]>('/api/chat/conversations', { signal });
+  }
+
+  getChatMessages(peerId: number, cursor?: { before: number } | { after: number }, signal?: AbortSignal): Promise<ChatHistory> {
+    const query = cursor ? ('before' in cursor ? `?before=${cursor.before}` : `?after=${cursor.after}`) : '';
+    return this.request<ChatHistory>(`/api/chat/conversations/${peerId}/messages${query}`, { signal });
+  }
+
+  sendChatMessage(peerId: number, requestId: string, body: string): Promise<ChatMessage> {
+    return this.request<ChatMessage>(`/api/chat/conversations/${peerId}/messages`, {
+      method: 'POST', body: JSON.stringify({ requestId, body }),
+    });
   }
 
   async markNotificationRead(id: number): Promise<AppNotification> {

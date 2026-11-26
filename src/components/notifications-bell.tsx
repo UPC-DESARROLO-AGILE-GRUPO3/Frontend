@@ -5,7 +5,7 @@ import { Bell } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ApiRequestError, apiClient, type AppNotification, type NotificationInbox } from "@/lib/api"
+import { ApiRequestError, apiClient, chatChangedEvent, type AppNotification, type NotificationInbox } from "@/lib/api"
 import { ReminderPreferencesDialog } from "@/components/reminder-preferences-dialog"
 import { playReminderTone } from "@/lib/reminder-sound"
 
@@ -98,7 +98,7 @@ export function NotificationsBell({ appointmentsHref, treatmentProposalsHref }: 
         await apiClient.watchNotificationInbox(() => {
           retryDelay = 1000
           void refresh()
-        }, signal)
+        }, signal, () => window.dispatchEvent(new Event(chatChangedEvent)))
       } catch (error) {
         if (error instanceof ApiRequestError && [401, 403].includes(error.status)) return
       }

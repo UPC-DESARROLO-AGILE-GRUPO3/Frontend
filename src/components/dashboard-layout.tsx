@@ -23,6 +23,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  MessageCircle,
   X,
   Home,
   Stethoscope,
@@ -68,6 +69,7 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
     { href: "/dashboard/medico/citas", icon: Calendar, label: "Citas", badge: null },
     { href: "/dashboard/medico/calendario", icon: Calendar, label: "Calendario", badge: null },
     { href: "/dashboard/medico/tratamientos", icon: Heart, label: "Tratamientos", badge: null },
+    { href: "/dashboard/medico/chat", icon: MessageCircle, label: "Chat", badge: null },
     { href: "/dashboard/medico/reportes", icon: BarChart3, label: "Reportes", badge: null },
   ], [])
 
@@ -75,6 +77,7 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
     { href: "/dashboard/paciente", icon: Home, label: "Dashboard", badge: null },
     { href: "/dashboard/paciente/tratamiento", icon: Heart, label: "Mi Tratamiento", badge: null },
     { href: "/dashboard/paciente/citas", icon: Calendar, label: "Mis Citas", badge: null },
+    { href: "/dashboard/paciente/chat", icon: MessageCircle, label: "Chat", badge: null },
     { href: "/dashboard/paciente/sintomas", icon: Activity, label: "Síntomas", badge: null },
     { href: "/dashboard/paciente/medicamentos", icon: Stethoscope, label: "Medicamentos", badge: null },
     { href: "/dashboard/paciente/historial", icon: FileText, label: "Historial", badge: null },
