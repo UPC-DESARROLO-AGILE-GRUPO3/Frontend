@@ -287,6 +287,14 @@ export interface ChatHistory {
   hasMore: boolean;
 }
 
+export interface SavedPaymentCard {
+  id: string;
+  brand: string;
+  last4: string;
+  expirationMonth: number;
+  expirationYear: number;
+}
+
 export class ApiRequestError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -1133,6 +1141,18 @@ class ApiClient {
     return this.request<ChatMessage>(`/api/chat/conversations/${peerId}/messages`, {
       method: 'POST', body: JSON.stringify({ requestId, body }),
     });
+  }
+
+  listPaymentMethods(signal?: AbortSignal): Promise<{ enabled: boolean; cards: SavedPaymentCard[] }> {
+    return this.request('/api/payment-methods/me', { signal });
+  }
+
+  startPaymentMethodCheckout(requestId: string): Promise<{ url: string }> {
+    return this.request('/api/payment-methods/me/checkout', { method: 'POST', body: JSON.stringify({ requestId }) });
+  }
+
+  getPaymentMethodCheckout(sessionId: string, signal?: AbortSignal): Promise<{ confirmed: boolean }> {
+    return this.request(`/api/payment-methods/me/checkout/${encodeURIComponent(sessionId)}`, { signal });
   }
 
   async markNotificationRead(id: number): Promise<AppNotification> {

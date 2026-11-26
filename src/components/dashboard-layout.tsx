@@ -32,6 +32,7 @@ import {
   Wifi,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -82,6 +83,9 @@ export const DashboardLayout = memo(function DashboardLayout({ children }: Dashb
     { href: "/dashboard/paciente/medicamentos", icon: Stethoscope, label: "Medicamentos", badge: null },
     { href: "/dashboard/paciente/historial", icon: FileText, label: "Historial", badge: null },
     { href: "/dashboard/paciente/iot", icon: Wifi, label: "Monitor IoT", badge: null },
+    ...(process.env.NEXT_PUBLIC_STRIPE_SANDBOX_ENABLED === "true"
+      ? [{ href: "/dashboard/paciente/pagos", icon: CreditCard, label: "Métodos de pago", badge: null }]
+      : []),
   ], [])
 
   const navItems = useMemo(() => {
